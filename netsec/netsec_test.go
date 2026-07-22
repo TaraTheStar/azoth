@@ -39,7 +39,7 @@ func TestIsDeniedIP(t *testing.T) {
 		// Allowed: routable public addresses, including near-miss edges.
 		{"public v4", "1.1.1.1", false},
 		{"public v4 dns", "8.8.8.8", false},
-		{"public v4 above cgnat", "100.128.0.1", false},   // 100.128/9 is public
+		{"public v4 above cgnat", "100.128.0.1", false},    // 100.128/9 is public
 		{"public v4 below cgnat", "100.63.255.255", false}, // 100.0/10-ish, below 100.64
 		{"public v4 near private", "172.15.255.255", false},
 		{"public v4 near private hi", "172.32.0.1", false},

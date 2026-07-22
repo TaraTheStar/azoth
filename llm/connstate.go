@@ -40,27 +40,35 @@ type ConnStateReporter interface {
 	LLMConnState() ConnState
 }
 
-// connTracker holds a ChatClient's last-known transport state plus the
-// lifecycle bookkeeping for the recovery probe goroutine. All fields
-// are mutex-guarded so Chat() (writer) and the TUI refresh ticker
-// (reader) can race safely.
-type connTracker struct {
+// ConnTracker holds a ChatClient's last-known transport state plus the
+// lifecycle bookkeeping for the recovery probe goroutine. All fields are
+// mutex-guarded so Chat() (writer) and the TUI refresh ticker (reader) can
+// race safely.
+//
+// It is exported so out-of-package vendor adapters (an app's Bedrock/Vertex/
+// Anthropic clients) can embed it and drive the same TUI connection indicator
+// as OpenAIClient, which embeds it too. The zero value is ready to use
+// (StateConnected). The fields stay unexported: embedders call the methods.
+type ConnTracker struct {
 	mu      sync.Mutex
 	state   ConnState
 	since   time.Time
 	probing bool // true while a probe goroutine is running
 }
 
-func (t *connTracker) get() ConnState {
+// Get returns the current transport state.
+func (t *ConnTracker) Get() ConnState {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.state
 }
 
-// set transitions the tracker to s and returns the previous state. The
+// Set transitions the tracker to s and returns the previous state. The
 // `since` timestamp only updates on an actual change so callers reading
 // "how long have we been degraded?" see the original transition time.
-func (t *connTracker) set(s ConnState) ConnState {
+// Adapters rely on the returned previous state to fire side effects (start a
+// recovery probe, log) only on the edge into a new state.
+func (t *ConnTracker) Set(s ConnState) ConnState {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	prev := t.state
@@ -71,10 +79,10 @@ func (t *connTracker) set(s ConnState) ConnState {
 	return prev
 }
 
-// claimProbe atomically marks a probe as running. Returns true if the
-// caller is the one that should start the probe goroutine (idempotent
-// across concurrent Disconnected transitions).
-func (t *connTracker) claimProbe() bool {
+// ClaimProbe atomically marks a probe as running. Returns true if the caller
+// is the one that should start the probe goroutine (idempotent across
+// concurrent Disconnected transitions).
+func (t *ConnTracker) ClaimProbe() bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.probing {
@@ -84,9 +92,9 @@ func (t *connTracker) claimProbe() bool {
 	return true
 }
 
-// releaseProbe clears the probing flag. Called from the probe goroutine
+// ReleaseProbe clears the probing flag. Called from the probe goroutine
 // before it exits.
-func (t *connTracker) releaseProbe() {
+func (t *ConnTracker) ReleaseProbe() {
 	t.mu.Lock()
 	t.probing = false
 	t.mu.Unlock()

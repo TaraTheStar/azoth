@@ -20,19 +20,19 @@ const probeInterval = 5 * time.Second
 const probeTimeout = 3 * time.Second
 
 // startRecoveryProbe spawns the at-most-one probe goroutine for c. Safe
-// to call repeatedly — claimProbe drops duplicates. The goroutine exits
+// to call repeatedly — ClaimProbe drops duplicates. The goroutine exits
 // once the endpoint answers (state flips to Connected) or the tracker
 // has already been moved out of Disconnected by something else (e.g., a
 // successful user-driven Chat call).
 func (c *OpenAIClient) startRecoveryProbe() {
-	if !c.conn.claimProbe() {
+	if !c.conn.ClaimProbe() {
 		return
 	}
 	go c.probeLoop()
 }
 
 func (c *OpenAIClient) probeLoop() {
-	defer c.conn.releaseProbe()
+	defer c.conn.ReleaseProbe()
 	interval := probeInterval
 	if c.ProbeInterval > 0 {
 		interval = c.ProbeInterval
@@ -40,11 +40,11 @@ func (c *OpenAIClient) probeLoop() {
 	t := time.NewTicker(interval)
 	defer t.Stop()
 	for range t.C {
-		if c.conn.get() != StateDisconnected {
+		if c.conn.Get() != StateDisconnected {
 			return
 		}
 		if c.probeOnce() {
-			c.conn.set(StateConnected)
+			c.conn.Set(StateConnected)
 			return
 		}
 	}

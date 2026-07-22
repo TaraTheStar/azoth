@@ -41,7 +41,7 @@ func (s *seqRT) RoundTrip(*http.Request) (*http.Response, error) {
 }
 
 // connRefused fabricates a transport-class error indistinguishable
-// from a real ECONNREFUSED dial failure for classifyTransportError's
+// from a real ECONNREFUSED dial failure for ClassifyTransportError's
 // purposes.
 func connRefused() error {
 	return &net.OpError{Op: "dial", Net: "tcp", Err: &os.SyscallError{Err: syscall.ECONNREFUSED}}
@@ -97,7 +97,7 @@ func TestDoChatRequest_TransportRetryThenSuccess(t *testing.T) {
 	// doChatRequest leaves state at Reconnecting on success — flipping
 	// to Connected is Chat()'s responsibility once it commits to the
 	// returned response.
-	if got := c.conn.get(); got != StateReconnecting {
+	if got := c.conn.Get(); got != StateReconnecting {
 		t.Errorf("state=%v, want Reconnecting (Chat finalises Connected)", got)
 	}
 }
@@ -119,14 +119,14 @@ func TestDoChatRequest_TransportRetryExhausted(t *testing.T) {
 	}
 	// Disconnected + probe start happen in Chat(), not doChatRequest —
 	// here we only assert Reconnecting was set during the retry loop.
-	if got := c.conn.get(); got != StateReconnecting {
+	if got := c.conn.Get(); got != StateReconnecting {
 		t.Errorf("state=%v, want Reconnecting at exhaustion", got)
 	}
 }
 
 func TestDoChatRequest_NonTransportNoRetry(t *testing.T) {
 	rt := &seqRT{steps: []seqStep{
-		// Bare error that classifyTransportError refuses to recognize:
+		// Bare error that ClassifyTransportError refuses to recognize:
 		// no retry should happen.
 		{err: errors.New("some random non-network thing")},
 	}}
@@ -139,7 +139,7 @@ func TestDoChatRequest_NonTransportNoRetry(t *testing.T) {
 	if calls := rt.calls.Load(); calls != 1 {
 		t.Errorf("calls=%d, want 1 (non-transport errors must not retry)", calls)
 	}
-	if got := c.conn.get(); got != StateConnected {
+	if got := c.conn.Get(); got != StateConnected {
 		t.Errorf("state=%v, want Connected (transport never registered as failed)", got)
 	}
 }
@@ -191,17 +191,17 @@ func TestProbeLoop_RecoversToConnected(t *testing.T) {
 		{resp: okResp("ok")}, // second probe succeeds
 	}}
 	c := newTestClient(rt)
-	c.conn.set(StateDisconnected)
+	c.conn.Set(StateDisconnected)
 	c.startRecoveryProbe()
 
 	deadline := time.Now().Add(500 * time.Millisecond)
 	for time.Now().Before(deadline) {
-		if c.conn.get() == StateConnected {
+		if c.conn.Get() == StateConnected {
 			return
 		}
 		time.Sleep(2 * time.Millisecond)
 	}
-	t.Fatalf("probe never recovered: state=%v", c.conn.get())
+	t.Fatalf("probe never recovered: state=%v", c.conn.Get())
 }
 
 func TestProbeLoop_StopsWhenStateChanged(t *testing.T) {
@@ -210,11 +210,11 @@ func TestProbeLoop_StopsWhenStateChanged(t *testing.T) {
 	// next tick rather than continuing to ping forever.
 	rt := &seqRT{steps: []seqStep{{err: connRefused()}, {err: connRefused()}}}
 	c := newTestClient(rt)
-	c.conn.set(StateDisconnected)
+	c.conn.Set(StateDisconnected)
 	c.startRecoveryProbe()
 
 	// External transition.
-	c.conn.set(StateConnected)
+	c.conn.Set(StateConnected)
 
 	deadline := time.Now().Add(200 * time.Millisecond)
 	for time.Now().Before(deadline) {
@@ -246,7 +246,7 @@ func TestChat_TransportExhaustionDisconnectsAndStartsProbe(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error from exhausted Chat")
 	}
-	if got := c.conn.get(); got != StateDisconnected {
+	if got := c.conn.Get(); got != StateDisconnected {
 		t.Errorf("state=%v, want Disconnected after retry exhaustion", got)
 	}
 	c.conn.mu.Lock()
@@ -257,7 +257,7 @@ func TestChat_TransportExhaustionDisconnectsAndStartsProbe(t *testing.T) {
 	}
 
 	// Cleanup: let the probe exit by flipping to Connected externally.
-	c.conn.set(StateConnected)
+	c.conn.Set(StateConnected)
 	time.Sleep(20 * time.Millisecond)
 }
 
@@ -279,7 +279,7 @@ func TestChat_HTTPErrorDoesNotMarkDisconnected(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected HTTP-status error to surface")
 	}
-	if got := c.conn.get(); got != StateConnected {
+	if got := c.conn.Get(); got != StateConnected {
 		t.Errorf("state=%v, want Connected (HTTP errors are not transport failures)", got)
 	}
 }
@@ -293,7 +293,7 @@ func TestStartRecoveryProbe_Idempotent(t *testing.T) {
 	// goroutine would error on the exhausted script.
 	rt := &seqRT{steps: []seqStep{{resp: okResp("ok")}}}
 	c := newTestClient(rt)
-	c.conn.set(StateDisconnected)
+	c.conn.Set(StateDisconnected)
 
 	c.startRecoveryProbe()
 	c.startRecoveryProbe()
@@ -301,12 +301,12 @@ func TestStartRecoveryProbe_Idempotent(t *testing.T) {
 
 	deadline := time.Now().Add(200 * time.Millisecond)
 	for time.Now().Before(deadline) {
-		if c.conn.get() == StateConnected {
+		if c.conn.Get() == StateConnected {
 			break
 		}
 		time.Sleep(2 * time.Millisecond)
 	}
-	if got := c.conn.get(); got != StateConnected {
+	if got := c.conn.Get(); got != StateConnected {
 		t.Fatalf("probe never recovered: state=%v", got)
 	}
 	// Settle: any extra goroutine would tick at ProbeInterval and hit
