@@ -230,7 +230,7 @@ func TestBuildConverseInput_RequiresModel(t *testing.T) {
 }
 
 // TestProviderFactory_BedrockType pins the factory's wiring: type =
-// "bedrock" must construct a BedrockClient with the AWS-specific
+// "bedrock" must construct a Client with the AWS-specific
 // config fields threaded through. The factory is the only place where
 // a typo'd type field becomes a config error rather than silent
 // fallback.
@@ -301,7 +301,7 @@ func TestApplyExtendedThinking_BudgetClamps(t *testing.T) {
 
 // TestProviderFactory_BedrockExtendedThinking confirms the
 // extended-thinking config fields thread through the factory onto
-// the BedrockClient — without this, the toml field would be silently
+// the Client — without this, the toml field would be silently
 // dropped on the floor.
 func itoa(n int64) string {
 	// tiny helper to keep tests free of strconv import noise
@@ -453,7 +453,7 @@ func TestBedrockGuardrailHeaders_EmptyIDNoHeaders(t *testing.T) {
 }
 
 // TestProviderFactory_BedrockGuardrails confirms the three guardrail
-// fields thread through the factory onto BedrockClient.
+// fields thread through the factory onto Client.
 func TestBuildConverseInput_UserImagePart(t *testing.T) {
 	imgBytes := []byte{0x89, 0x50, 0x4e, 0x47}
 	in, err := buildConverseInput(llm.ChatRequest{
@@ -678,4 +678,4 @@ func TestApplyBedrockCachePoints_NoSystemNoTools(t *testing.T) {
 }
 
 // TestProviderFactory_BedrockPromptCaching confirms the prompt_caching
-// flag threads through onto BedrockClient.
+// flag threads through onto Client.

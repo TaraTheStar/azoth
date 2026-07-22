@@ -11,19 +11,19 @@ import (
 
 	llm "github.com/TaraTheStar/azoth/llm"
 
-	"github.com/anthropics/anthropic-sdk-go"
+	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/anthropics/anthropic-sdk-go/vertex"
 )
 
-// AnthropicVertexClient routes Anthropic Messages API calls through GCP
+// VertexClient routes Anthropic Messages API calls through GCP
 // Vertex AI's `:rawPredict` endpoint instead of api.anthropic.com. Same
 // wire protocol once the anthropic-sdk-go vertex middleware swaps the
 // base URL and signs requests with Google Application Default
 // Credentials, so it reuses every translator + the streaming loop from
-// AnthropicClient.
+// Client.
 //
-// Distinct from VertexClient (`type = "vertex"`), which talks the
+// Distinct from vertex.Client (`type = "vertex"`), which talks the
 // generateContent API and is Gemini-only. `type = "anthropic-vertex"`
 // is for users running Claude on GCP and who want the Anthropic-shape
 // features (prompt caching, computer-use, server tools) that
@@ -33,9 +33,9 @@ import (
 // GOOGLE_APPLICATION_CREDENTIALS env var, `gcloud auth application-
 // default login` on a workstation, or the GCE/GKE/Cloud Run metadata
 // server in deployed environments. Project + Region are required —
-// unlike VertexClient there is no env-var fallback (the SDK's vertex
+// unlike vertex.Client there is no env-var fallback (the SDK's vertex
 // middleware panics if region is empty).
-type AnthropicVertexClient struct {
+type VertexClient struct {
 	// Model is the Vertex-side model name (e.g.
 	// "claude-3-5-sonnet-v2@20241022"). Note the `@` versioning suffix
 	// — different from api.anthropic.com (`-latest`) and Bedrock
@@ -55,13 +55,13 @@ type AnthropicVertexClient struct {
 	// defaults to 8192.
 	MaxTokens int64
 
-	// ExtendedThinking + Budget — same semantics as AnthropicClient.
+	// ExtendedThinking + Budget — same semantics as Client.
 	// Not every Vertex-hosted Claude model supports thinking; the API
 	// will reject the request if the chosen model can't handle it.
 	ExtendedThinking       bool
 	ExtendedThinkingBudget int64
 
-	// PromptCaching — same semantics as AnthropicClient.PromptCaching.
+	// PromptCaching — same semantics as Client.PromptCaching.
 	// Vertex-hosted Claude honours the same cache_control markers.
 	PromptCaching bool
 
@@ -76,15 +76,15 @@ type AnthropicVertexClient struct {
 
 	// sdk is built lazily on first Chat call so config changes before
 	// first use take effect.
-	sdk *anthropic.Client
+	sdk *anthropicsdk.Client
 }
 
 // LLMConnState lets the TUI render this provider's connection state
 // through the same ConnStateReporter interface every other provider
 // uses.
-func (c *AnthropicVertexClient) LLMConnState() llm.ConnState { return c.conn.Get() }
+func (c *VertexClient) LLMConnState() llm.ConnState { return c.conn.Get() }
 
-func (c *AnthropicVertexClient) client(ctx context.Context) (*anthropic.Client, error) {
+func (c *VertexClient) client(ctx context.Context) (*anthropicsdk.Client, error) {
 	if c.sdk != nil {
 		return c.sdk, nil
 	}
@@ -106,14 +106,14 @@ func (c *AnthropicVertexClient) client(ctx context.Context) (*anthropic.Client, 
 		opts = append(opts, option.WithHTTPClient(c.HTTPClient))
 	}
 
-	sdk := anthropic.NewClient(opts...)
+	sdk := anthropicsdk.NewClient(opts...)
 	c.sdk = &sdk
 	return c.sdk, nil
 }
 
 // Chat translates the ChatRequest to Messages-API params and streams
 // the result through the vertex-wrapped SDK client.
-func (c *AnthropicVertexClient) Chat(ctx context.Context, req llm.ChatRequest) (<-chan llm.Event, error) {
+func (c *VertexClient) Chat(ctx context.Context, req llm.ChatRequest) (<-chan llm.Event, error) {
 	maxTokens := c.MaxTokens
 	if maxTokens == 0 {
 		maxTokens = 8192
@@ -132,10 +132,10 @@ func (c *AnthropicVertexClient) Chat(ctx context.Context, req llm.ChatRequest) (
 }
 
 // startRecoveryProbe holds the claim for one interval and releases;
-// next Chat drives recovery. Same reasoning as AnthropicBedrockClient
+// next Chat drives recovery. Same reasoning as BedrockClient
 // — there's no cheap reachability check sharing the same IAM scope as
 // the inference path on Vertex.
-func (c *AnthropicVertexClient) startRecoveryProbe() {
+func (c *VertexClient) startRecoveryProbe() {
 	if !c.conn.ClaimProbe() {
 		return
 	}

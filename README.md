@@ -54,6 +54,32 @@ for ev, err := range llm.Stream(ctx, client, req) { ... }
 `llm/llmtest` provides a programmable `ChatClient` mock for driving
 agent loops in tests.
 
+#### Cloud backends — `llm/anthropic`, `llm/bedrock`, `llm/vertex`
+
+Non-OpenAI providers, each behind the same `llm.ChatClient` contract, so
+a multi-provider host swaps a backend without touching its agent loop:
+
+- `anthropic.Client` — the Anthropic Messages API directly, plus
+  `anthropic.BedrockClient` and `anthropic.VertexClient` for the same
+  wire protocol routed through Amazon Bedrock / GCP Vertex (prompt
+  caching, extended thinking, guardrails carried through)
+- `bedrock.Client` — Amazon Bedrock's multi-vendor Converse API
+- `vertex.Client` — Google Vertex / Gemini generate-content
+
+Each is a plain struct with exported fields — no constructors — so a host
+builds one by literal and hands it around as an `llm.ChatClient`:
+
+```go
+c := &anthropic.Client{APIKey: key, Model: "claude-sonnet-4-5", MaxTokens: 16000}
+ch, err := c.Chat(ctx, req)
+```
+
+These are **subpackages, not part of `llm` itself**, on purpose: the three
+heavy cloud SDKs (`anthropic-sdk-go`, `aws-sdk-go-v2`,
+`google.golang.org/genai`) stay out of the dependency graph of anything
+that imports only `azoth/llm`. `go list -deps ./llm` pulls none of them;
+each subpackage pulls only its own.
+
 ### `paths`
 
 XDG Base Directory layout, parameterized by application name. A `Layout`
@@ -95,18 +121,56 @@ _ = store.Migrate(db, migrationFS, "migrations")
   `//go:embed migrations/*.sql`.
 
 `store` blank-imports `modernc.org/sqlite`, so callers don't — this is the
-one package that pulls a non-stdlib dependency into azoth.
+one core package that pulls a non-stdlib dependency into azoth.
 
-## Planned
+### `netsec`
 
-Roughly in order — see the sibling repos for the current copies:
+The SSRF address-class guard: `IsDeniedIP(net.IP) bool`, the single
+decision of whether a model-supplied hostname may become an outbound
+connection. It denies loopback, RFC1918 + RFC4193 ULA, link-local (incl.
+cloud metadata 169.254.169.254), multicast, unspecified, CGNAT 100.64/10,
+0.0.0.0/8, and broadcast; nil fails closed.
 
-- `tools` — the shared `Tool` / `Result` / `Registry` contract
-- `netsec` — SSRF/private-range guard
-- `bus` — in-process pub/sub
+```go
+if netsec.IsDeniedIP(resolved) { return errBlocked }
+```
 
-Deliberately *not* here: config structs, store schemas, agent loops,
-memory designs — those are per-app products, not shared substance.
+Only the stdlib `net` — no `llm` dependency — so a consumer that only
+needs the classifier doesn't pull anything else in. The resolve-and-pin
+dialer that *uses* it stays per-app (each host has its own allow-list and
+egress policy); azoth shares only the classification.
+
+### `tools`
+
+The shared tool contract for agent hosts: a generic `Tool[Ctx any]`
+interface, a unified `Result` (+ `ResultMeta` for paths-read/written and
+cache keys), and a goroutine-safe `Registry[Ctx]` (`Register` /
+`Unregister` / `Get(name) (T, bool)` / `List` / `Filter` / `Without` /
+`ToolDefs`, with a memoized name-sorted `[]llm.ToolDef`). Each app adopts
+via a type alias, supplying its own request-context type and tool set:
+
+```go
+type Tool = tools.Tool[AgentContext]
+type Registry = tools.Registry[AgentContext]
+```
+
+An opt-in helper layer rides alongside — typed argument extractors
+(`StrArg` / `IntArg` / `FloatArg` / `BoolArg` + `Opt*` variants, with a
+typed `ArgError`), JSON-schema builders (`Object` / `Prop` / …), and an
+`MCPTool[Ctx]` adapter shape — so tool authors share ergonomics, not just
+the registry. MCP remains the runtime-plugin seam; azoth doesn't add a
+second plugin loader.
+
+## Not shared — on purpose
+
+`bus` (in-process pub/sub) was evaluated and deliberately left per-app: the
+two implementations share only a ~15-line fan-out idiom, and their valuable
+machinery (namtar's replay ring + sequence stamping vs. ensō's typed
+wire-form + slow-consumer accounting) can't sit on a common core cleanly.
+
+Also intentionally out: config structs, store schemas and query surfaces,
+agent loops, memory designs, and embeddings — those are per-app products,
+not shared substance.
 
 ## Development
 

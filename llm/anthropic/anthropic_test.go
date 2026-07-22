@@ -10,7 +10,7 @@ import (
 
 	llm "github.com/TaraTheStar/azoth/llm"
 
-	"github.com/anthropics/anthropic-sdk-go"
+	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
 )
 
 func TestToAnthropicParams_System(t *testing.T) {
@@ -31,7 +31,7 @@ func TestToAnthropicParams_System(t *testing.T) {
 	if p.System[0].Text != "you are helpful" || p.System[1].Text != "be concise" {
 		t.Fatalf("system text mismatch: %+v", p.System)
 	}
-	if len(p.Messages) != 1 || p.Messages[0].Role != anthropic.MessageParamRoleUser {
+	if len(p.Messages) != 1 || p.Messages[0].Role != anthropicsdk.MessageParamRoleUser {
 		t.Fatalf("expected single user message, got %+v", p.Messages)
 	}
 }
@@ -116,7 +116,7 @@ func TestToAnthropicSchema_LiftsRequired(t *testing.T) {
 // block, force temperature=1, and drop top_p / top_k. Anthropic rejects
 // the request if any of these are off.
 func TestAnthropicBuildParams_ExtendedThinking(t *testing.T) {
-	c := &AnthropicClient{
+	c := &Client{
 		Model:                  "claude-sonnet-4-5",
 		ExtendedThinking:       true,
 		ExtendedThinkingBudget: 8000,
@@ -164,7 +164,7 @@ func TestAnthropicBuildParams_ThinkingBudgetClamps(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			c := &AnthropicClient{
+			c := &Client{
 				Model:                  "claude-sonnet-4-5",
 				ExtendedThinking:       true,
 				ExtendedThinkingBudget: tc.budget,
@@ -313,7 +313,7 @@ func TestAnthropicContentBlock_ImageWithoutDataErrors(t *testing.T) {
 // omitzero machinery is finicky, and a silently-empty CacheControl
 // wouldn't reach the wire.
 func TestAnthropicBuildParams_PromptCaching(t *testing.T) {
-	c := &AnthropicClient{Model: "claude-sonnet-4-5", PromptCaching: true}
+	c := &Client{Model: "claude-sonnet-4-5", PromptCaching: true}
 	params, err := c.buildParams(llm.ChatRequest{
 		Messages: []llm.Message{
 			{Role: "system", Content: "you are concise"},
@@ -352,7 +352,7 @@ func TestAnthropicBuildParams_PromptCaching(t *testing.T) {
 // requests with more than 4 cache_control markers, so the count must
 // never exceed it even when there are plenty of messages to mark.
 func TestAnthropicBuildParams_PromptCachingCapsAtFour(t *testing.T) {
-	c := &AnthropicClient{Model: "claude-sonnet-4-5", PromptCaching: true}
+	c := &Client{Model: "claude-sonnet-4-5", PromptCaching: true}
 	params, err := c.buildParams(llm.ChatRequest{
 		Messages: []llm.Message{
 			{Role: "system", Content: "be brief"},
@@ -383,7 +383,7 @@ func TestAnthropicBuildParams_PromptCachingCapsAtFour(t *testing.T) {
 // pin: with the flag off, NO cache_control markers appear. This is
 // the byte-identical legacy shape every existing user gets.
 func TestAnthropicBuildParams_PromptCachingDisabled(t *testing.T) {
-	c := &AnthropicClient{Model: "claude-sonnet-4-5", PromptCaching: false}
+	c := &Client{Model: "claude-sonnet-4-5", PromptCaching: false}
 	params, err := c.buildParams(llm.ChatRequest{
 		Messages: []llm.Message{
 			{Role: "system", Content: "you are concise"},
@@ -405,7 +405,7 @@ func TestAnthropicBuildParams_PromptCachingDisabled(t *testing.T) {
 // for multi-turn workloads. Important is that empty system + empty
 // tools doesn't panic on slice access.
 func TestAnthropicPromptCaching_NoSystemNoTools(t *testing.T) {
-	c := &AnthropicClient{Model: "claude-sonnet-4-5", PromptCaching: true}
+	c := &Client{Model: "claude-sonnet-4-5", PromptCaching: true}
 	params, err := c.buildParams(llm.ChatRequest{
 		Messages: []llm.Message{{Role: "user", Content: "hi"}},
 	}, 8192)
@@ -420,4 +420,4 @@ func TestAnthropicPromptCaching_NoSystemNoTools(t *testing.T) {
 }
 
 // TestProviderFactory_AnthropicPromptCaching confirms the
-// prompt_caching toml key threads onto AnthropicClient.PromptCaching.
+// prompt_caching toml key threads onto Client.PromptCaching.
