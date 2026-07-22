@@ -28,7 +28,7 @@ const defaultVertexMaxTokens = 8192
 // regional residency override via gcp_location.
 const defaultVertexLocation = "us-central1"
 
-// VertexClient routes ChatRequests through Vertex AI's generateContent
+// Client routes ChatRequests through Vertex AI's generateContent
 // API via the unified google.golang.org/genai SDK.
 //
 // Scope: Gemini family (gemini-2.5-pro, gemini-2.5-flash, gemini-2.0-*,
@@ -40,7 +40,7 @@ const defaultVertexLocation = "us-central1"
 // GOOGLE_APPLICATION_CREDENTIALS env var, `gcloud auth application-
 // default login` on the workstation, or the GCE/GKE/Cloud Run metadata
 // server in deployed environments.
-type VertexClient struct {
+type Client struct {
 	Model    string
 	Project  string
 	Location string
@@ -94,9 +94,9 @@ type vertexGenerateAPI interface {
 }
 
 // LLMConnState satisfies ConnStateReporter.
-func (c *VertexClient) LLMConnState() llm.ConnState { return c.conn.Get() }
+func (c *Client) LLMConnState() llm.ConnState { return c.conn.Get() }
 
-func (c *VertexClient) client(ctx context.Context) (vertexGenerateAPI, error) {
+func (c *Client) client(ctx context.Context) (vertexGenerateAPI, error) {
 	c.sdkOnce.Do(func() {
 		factory := c.newClient
 		if factory == nil {
@@ -134,7 +134,7 @@ func (a vertexModelsAdapter) GenerateContentStream(ctx context.Context, model st
 // Chat translates an OpenAI-shaped ChatRequest into Vertex generate-
 // content inputs, opens the streaming iterator, and forwards events
 // onto the adapter-agnostic Event channel.
-func (c *VertexClient) Chat(ctx context.Context, req llm.ChatRequest) (<-chan llm.Event, error) {
+func (c *Client) Chat(ctx context.Context, req llm.ChatRequest) (<-chan llm.Event, error) {
 	model := c.Model
 	if model == "" {
 		model = req.Model
@@ -353,7 +353,7 @@ func synthVertexToolCallID(provided, name string, idx int) string {
 // is no cheap reachability check that exercises the same IAM scope as
 // GenerateContent. Hold the claim for one interval, then release; the
 // next user-driven Chat decides recovery.
-func (c *VertexClient) startRecoveryProbe() {
+func (c *Client) startRecoveryProbe() {
 	if !c.conn.ClaimProbe() {
 		return
 	}

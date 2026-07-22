@@ -41,6 +41,6 @@ func TestAnthropicBedrock_BuildParamsReusesAnthropicTranslator(t *testing.T) {
 }
 
 // TestProviderFactory_AnthropicBedrockType checks that
-// type = "anthropic-bedrock" constructs an AnthropicBedrockClient with
+// type = "anthropic-bedrock" constructs a BedrockClient with
 // AWS-specific config (region, profile) threaded. Distinct from
 // type = "bedrock" (Converse) — both can coexist in one config.

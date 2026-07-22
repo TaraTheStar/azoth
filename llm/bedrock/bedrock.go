@@ -35,7 +35,7 @@ const minThinkingBudget = 1024
 // the user leaves ExtendedThinkingBudget at zero.
 const defaultThinkingBudget = 4096
 
-// BedrockClient routes ChatRequests through AWS Bedrock's Converse API.
+// Client routes ChatRequests through AWS Bedrock's Converse API.
 // Multi-vendor by design: any model supported by Converse — Claude,
 // Nova, Llama, Mistral, Cohere, AI21 — is reachable through this one
 // adapter. The Model field is the Bedrock model ID (e.g.
@@ -51,7 +51,7 @@ const defaultThinkingBudget = 4096
 //   - Bedrock Guardrails
 //   - additionalModelRequestFields (Claude extended-thinking on Bedrock)
 //   - inference-profile ARN-specific helpers
-type BedrockClient struct {
+type Client struct {
 	Model     string
 	Region    string
 	Profile   string
@@ -114,9 +114,9 @@ type bedrockConverseAPI interface {
 }
 
 // LLMConnState satisfies ConnStateReporter.
-func (c *BedrockClient) LLMConnState() llm.ConnState { return c.conn.Get() }
+func (c *Client) LLMConnState() llm.ConnState { return c.conn.Get() }
 
-func (c *BedrockClient) client(ctx context.Context) (bedrockConverseAPI, error) {
+func (c *Client) client(ctx context.Context) (bedrockConverseAPI, error) {
 	c.sdkOnce.Do(func() {
 		factory := c.newClient
 		if factory == nil {
@@ -145,7 +145,7 @@ func newBedrockClient(ctx context.Context, region, profile string) (bedrockConve
 // Chat translates the OpenAI-shaped ChatRequest into a Converse stream
 // input, dispatches it, and translates the streamed events back to the
 // adapter-agnostic Event channel.
-func (c *BedrockClient) Chat(ctx context.Context, req llm.ChatRequest) (<-chan llm.Event, error) {
+func (c *Client) Chat(ctx context.Context, req llm.ChatRequest) (<-chan llm.Event, error) {
 	model := c.Model
 	if model == "" {
 		model = req.Model
@@ -308,7 +308,7 @@ type bedrockToolAcc struct {
 // could fail spuriously while inference works fine. Hold the claim for
 // one interval, then release; the next user-driven Chat call decides
 // recovery.
-func (c *BedrockClient) startRecoveryProbe() {
+func (c *Client) startRecoveryProbe() {
 	if !c.conn.ClaimProbe() {
 		return
 	}
@@ -570,7 +570,7 @@ func applyBedrockCachePoints(input *bedrockruntime.ConverseStreamInput) {
 // bedrockGuardrailHeaders maps the user-facing trace value
 // ("enabled"/"disabled"/"enabled_full") onto the X-Amzn-Bedrock-*
 // header set that Bedrock InvokeModel uses to apply a guardrail.
-// Shared with AnthropicBedrockClient so the same `bedrock_guardrail_*`
+// The anthropic package carries its own copy for anthropic.BedrockClient so the same `bedrock_guardrail_*`
 // config keys behave the same across both Bedrock paths even though
 // the wire shape differs (structured field for Converse, headers for
 // InvokeModel).

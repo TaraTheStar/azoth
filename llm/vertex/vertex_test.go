@@ -334,7 +334,7 @@ func TestApplyVertexThinking_NoAnthropicConstraints(t *testing.T) {
 }
 
 // TestProviderFactory_VertexType confirms the factory dispatches
-// type="vertex" to a VertexClient with the GCP fields threaded.
+// type="vertex" to a Client with the GCP fields threaded.
 func TestBuildVertexRequest_MalformedArgsReturnsError(t *testing.T) {
 	_, _, err := buildVertexRequest(llm.ChatRequest{
 		Messages: []llm.Message{{
@@ -468,7 +468,7 @@ func TestApplyVertexSafety_EmptyMapNoop(t *testing.T) {
 }
 
 // TestProviderFactory_VertexSafety confirms the safety map threads
-// through the factory onto VertexClient.
+// through the factory onto Client.
 func TestVertexUserParts_ImageInline(t *testing.T) {
 	imgBytes := []byte{0x89, 0x50, 0x4e, 0x47}
 	parts, err := vertexUserParts(llm.Message{

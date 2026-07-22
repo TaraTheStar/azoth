@@ -12,19 +12,19 @@ import (
 
 	llm "github.com/TaraTheStar/azoth/llm"
 
-	"github.com/anthropics/anthropic-sdk-go"
+	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/bedrock"
 	"github.com/anthropics/anthropic-sdk-go/option"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 )
 
-// AnthropicBedrockClient routes Anthropic Messages API calls through
+// BedrockClient routes Anthropic Messages API calls through
 // Amazon Bedrock instead of api.anthropic.com. Same wire protocol once
 // the anthropic-sdk-go bedrock middleware swaps the base URL and signs
 // requests with AWS SigV4, so it reuses every translator + the
-// streaming loop from AnthropicClient.
+// streaming loop from Client.
 //
-// Distinct from BedrockClient (`type = "bedrock"`), which talks the
+// Distinct from bedrock.Client (`type = "bedrock"`), which talks the
 // multi-vendor Converse API. The Anthropic-native path here is opt-in
 // because Converse covers Claude already and is the better default;
 // `type = "anthropic-bedrock"` is for users who specifically want the
@@ -33,7 +33,7 @@ import (
 //
 // Auth follows the standard AWS credential chain (env vars, profile,
 // EC2/ECS/EKS instance role) — see Region and Profile to override.
-type AnthropicBedrockClient struct {
+type BedrockClient struct {
 	// Model is the Bedrock-side model ID (e.g.
 	// "anthropic.claude-3-5-sonnet-20241022-v2:0") or an inference
 	// profile ARN. Different from api.anthropic.com model names.
@@ -51,13 +51,13 @@ type AnthropicBedrockClient struct {
 	// defaults to 8192.
 	MaxTokens int64
 
-	// ExtendedThinking + Budget — same semantics as AnthropicClient.
+	// ExtendedThinking + Budget — same semantics as Client.
 	// Not every Bedrock-hosted Claude model supports thinking; the API
 	// will reject the request if the chosen model can't handle it.
 	ExtendedThinking       bool
 	ExtendedThinkingBudget int64
 
-	// GuardrailID / GuardrailVersion / GuardrailTrace mirror BedrockClient's
+	// GuardrailID / GuardrailVersion / GuardrailTrace mirror bedrock.Client's
 	// guardrail fields. The Anthropic-native path on Bedrock uses
 	// :invoke-model rather than :converse, so guardrails get applied via
 	// the X-Amzn-Bedrock-Guardrail* HTTP headers instead of a structured
@@ -66,7 +66,7 @@ type AnthropicBedrockClient struct {
 	GuardrailVersion string
 	GuardrailTrace   string
 
-	// PromptCaching — same semantics as AnthropicClient.PromptCaching.
+	// PromptCaching — same semantics as Client.PromptCaching.
 	// Bedrock-hosted Claude honours the same cache_control markers
 	// since the SDK speaks the Messages API on this path.
 	PromptCaching bool
@@ -82,14 +82,14 @@ type AnthropicBedrockClient struct {
 
 	// sdk is built lazily on first Chat call so config changes before
 	// first use take effect.
-	sdk *anthropic.Client
+	sdk *anthropicsdk.Client
 }
 
 // LLMConnState lets the TUI render Bedrock's connection state through
 // the same ConnStateReporter interface every other provider uses.
-func (c *AnthropicBedrockClient) LLMConnState() llm.ConnState { return c.conn.Get() }
+func (c *BedrockClient) LLMConnState() llm.ConnState { return c.conn.Get() }
 
-func (c *AnthropicBedrockClient) client(ctx context.Context) (*anthropic.Client, error) {
+func (c *BedrockClient) client(ctx context.Context) (*anthropicsdk.Client, error) {
 	if c.sdk != nil {
 		return c.sdk, nil
 	}
@@ -126,14 +126,14 @@ func (c *AnthropicBedrockClient) client(ctx context.Context) (*anthropic.Client,
 		}
 	}
 
-	sdk := anthropic.NewClient(opts...)
+	sdk := anthropicsdk.NewClient(opts...)
 	c.sdk = &sdk
 	return c.sdk, nil
 }
 
 // Chat translates the ChatRequest to Messages-API params and streams
 // the result through the bedrock-wrapped SDK client.
-func (c *AnthropicBedrockClient) Chat(ctx context.Context, req llm.ChatRequest) (<-chan llm.Event, error) {
+func (c *BedrockClient) Chat(ctx context.Context, req llm.ChatRequest) (<-chan llm.Event, error) {
 	maxTokens := c.MaxTokens
 	if maxTokens == 0 {
 		maxTokens = 8192
@@ -154,12 +154,12 @@ func (c *AnthropicBedrockClient) Chat(ctx context.Context, req llm.ChatRequest) 
 	return streamAnthropic(ctx, sdk, params, &c.conn, c.startRecoveryProbe, "anthropic-bedrock"), nil
 }
 
-// startRecoveryProbe mirrors AnthropicClient but skips the reachability
+// startRecoveryProbe mirrors Client but skips the reachability
 // ping: Bedrock's Models endpoint is region-scoped and charges different
 // IAM permissions than the inference path, so a probe could spuriously
 // fail while inference works. Hold the claim for one interval and
 // release; the next Chat call drives recovery.
-func (c *AnthropicBedrockClient) startRecoveryProbe() {
+func (c *BedrockClient) startRecoveryProbe() {
 	if !c.conn.ClaimProbe() {
 		return
 	}

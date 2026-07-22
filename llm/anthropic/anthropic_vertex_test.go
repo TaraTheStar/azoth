@@ -11,7 +11,7 @@ import (
 )
 
 func TestAnthropicVertexClient_MissingRegionErrors(t *testing.T) {
-	c := &AnthropicVertexClient{Model: "claude-3-5-sonnet-v2@20241022", Project: "p"}
+	c := &VertexClient{Model: "claude-3-5-sonnet-v2@20241022", Project: "p"}
 	_, err := c.Chat(context.Background(), llm.ChatRequest{
 		Messages: []llm.Message{{Role: "user", Content: "hi"}},
 	})
@@ -26,7 +26,7 @@ func TestAnthropicVertexClient_MissingRegionErrors(t *testing.T) {
 // TestAnthropicVertexClient_MissingProjectErrors mirrors the region
 // check — project is also required, also pre-validated.
 func TestAnthropicVertexClient_MissingProjectErrors(t *testing.T) {
-	c := &AnthropicVertexClient{Model: "claude-3-5-sonnet-v2@20241022", Region: "us-east5"}
+	c := &VertexClient{Model: "claude-3-5-sonnet-v2@20241022", Region: "us-east5"}
 	_, err := c.Chat(context.Background(), llm.ChatRequest{
 		Messages: []llm.Message{{Role: "user", Content: "hi"}},
 	})
