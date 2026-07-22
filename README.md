@@ -72,12 +72,35 @@ is unset is selectable — `FallbackToState` (default) or `FallbackToTemp`
 (a uid-scoped `$TMPDIR/<app>-<uid>`, for a 0700 socket dir) — since the
 XDG spec leaves that choice to the application.
 
+### `store`
+
+A schema-agnostic SQLite harness — the open-and-migrate plumbing, without
+any application's tables:
+
+```go
+db, _ := store.Open(dbPath)              // WAL, foreign_keys, busy_timeout
+_ = store.Migrate(db, migrationFS, "migrations")
+```
+
+- `Open` creates the parent dir 0700 (clamping a looser pre-existing one),
+  opens the pure-Go modernc driver with the standard
+  WAL/foreign-keys/busy-timeout pragmas, and Pings before returning the raw
+  `*sql.DB` — schema and `Store` wrapper stay in the app.
+- `Migrate` applies embedded `NNNN_name.sql` files newer than
+  `PRAGMA user_version`, in ascending *numeric* version order (not
+  directory order), each body plus its version bump in one transaction so a
+  failure rolls back cleanly. Duplicate versions and non-numeric prefixes
+  are rejected loudly. It takes an `fs.FS` (not a concrete `embed.FS`), so
+  it's unit-testable with `fstest.MapFS` while the app passes its
+  `//go:embed migrations/*.sql`.
+
+`store` blank-imports `modernc.org/sqlite`, so callers don't — this is the
+one package that pulls a non-stdlib dependency into azoth.
+
 ## Planned
 
 Roughly in order — see the sibling repos for the current copies:
 
-- `store` — modernc-sqlite open + embedded-migration harness
-  (`user_version` cursor, WAL/foreign-keys/busy-timeout pragmas)
 - `tools` — the shared `Tool` / `Result` / `Registry` contract
 - `netsec` — SSRF/private-range guard
 - `bus` — in-process pub/sub
