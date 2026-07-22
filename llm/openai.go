@@ -84,6 +84,31 @@ func debugLog() io.Writer {
 	return debugWriter
 }
 
+// Debugf writes a formatted line to the debug log when debug logging is
+// enabled (see SetDebug), and no-ops otherwise. It is the one-call form of the
+// enabled-check + Fprintf(debugLog(), …) idiom, exported so out-of-package
+// vendor adapters log through the same file without reimplementing the guard.
+//
+// The atomic flag is checked before taking the lock or formatting, so a
+// disabled call is cheap. Note it is not free: the variadic args are still
+// boxed into an []any at the call site. On genuinely per-token hot paths
+// (per-SSE-chunk) prefer the explicit `if DebugEnabled()` guard to skip even
+// that; for per-request logging Debugf is the right tool.
+func Debugf(format string, args ...any) {
+	if !debugEnabled.Load() {
+		return
+	}
+	debugMu.RLock()
+	w := debugWriter
+	debugMu.RUnlock()
+	fmt.Fprintf(w, format, args...)
+}
+
+// DebugEnabled reports whether debug logging is currently on. Exported for
+// adapters that want to gate an expensive-to-format per-token log line the way
+// OpenAIClient's SSE loop does, avoiding even the variadic boxing Debugf costs.
+func DebugEnabled() bool { return debugEnabled.Load() }
+
 // EventType identifies the kind of streaming event.
 type EventType int
 
@@ -221,7 +246,7 @@ type OpenAIClient struct {
 	// transport-class errors (DNS, refused, reset, timeout, …) move the
 	// state — HTTP-status errors leave it Connected because TLS+TCP did
 	// succeed.
-	conn connTracker
+	conn ConnTracker
 }
 
 func (c *OpenAIClient) httpClient() *http.Client {
@@ -234,7 +259,7 @@ func (c *OpenAIClient) httpClient() *http.Client {
 // LLMConnState satisfies ConnStateReporter. Returning by value keeps the
 // reader path lock-light — callers don't need to hold any reference to
 // the tracker itself.
-func (c *OpenAIClient) LLMConnState() ConnState { return c.conn.get() }
+func (c *OpenAIClient) LLMConnState() ConnState { return c.conn.Get() }
 
 // retryBackoff returns the wait between attempt N and attempt N+1. Two
 // retries (500ms, 1.5s) cover the vast majority of transient blips —
@@ -285,15 +310,15 @@ func (c *OpenAIClient) doChatRequest(ctx context.Context, body []byte) (*http.Re
 		}
 
 		// Non-transport errors don't benefit from retry.
-		if classifyTransportError(err) == "" {
-			return nil, friendlyHTTPError(c.Endpoint, c.ConnectHint, err)
+		if ClassifyTransportError(err) == "" {
+			return nil, FriendlyHTTPError(c.Endpoint, c.ConnectHint, err)
 		}
 
 		lastErr = err
 		// We're going to retry — surface that on the indicator before
 		// the user-visible delay starts. Probe goroutine isn't spawned
 		// here; that only happens once retries are exhausted.
-		c.conn.set(StateReconnecting)
+		c.conn.Set(StateReconnecting)
 
 		if attempt == maxChatRetries {
 			break
@@ -308,7 +333,7 @@ func (c *OpenAIClient) doChatRequest(ctx context.Context, body []byte) (*http.Re
 		case <-time.After(backoff(attempt)):
 		}
 	}
-	return nil, friendlyHTTPError(c.Endpoint, c.ConnectHint, lastErr)
+	return nil, FriendlyHTTPError(c.Endpoint, c.ConnectHint, lastErr)
 }
 
 // retryableStatus reports whether a status code is worth re-attempting:
@@ -340,7 +365,7 @@ func (c *OpenAIClient) doChatRequestRetryingStatus(ctx context.Context, body []b
 		// We got *some* HTTP response — TCP+TLS were healthy enough.
 		// Even a 500 means the endpoint is reachable, so clear any
 		// prior degraded state.
-		c.conn.set(StateConnected)
+		c.conn.Set(StateConnected)
 
 		if resp.StatusCode <= 299 {
 			return resp, nil
@@ -374,9 +399,7 @@ func (c *OpenAIClient) doChatRequestRetryingStatus(ctx context.Context, body []b
 			}
 			wait = backoff(attempt)
 		}
-		if debugEnabled.Load() {
-			fmt.Fprintf(debugLog(), "status retry %d/%d after HTTP %d, waiting %s\n", attempt+1, c.StatusRetries, resp.StatusCode, wait)
-		}
+		Debugf("status retry %d/%d after HTTP %d, waiting %s\n", attempt+1, c.StatusRetries, resp.StatusCode, wait)
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -414,9 +437,7 @@ func (c *OpenAIClient) Chat(ctx context.Context, req ChatRequest) (<-chan Event,
 	if err != nil {
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
-	if debugEnabled.Load() {
-		fmt.Fprintf(debugLog(), "POST %s/chat/completions\nbody: %s\n", c.Endpoint, data)
-	}
+	Debugf("POST %s/chat/completions\nbody: %s\n", c.Endpoint, data)
 
 	resp, err := c.doChatRequestRetryingStatus(ctx, data)
 	if err != nil {
@@ -424,8 +445,8 @@ func (c *OpenAIClient) Chat(ctx context.Context, req ChatRequest) (<-chan Event,
 		// indicator to Disconnected and start the recovery probe so the
 		// TUI clears the marker once the endpoint is back, even if the
 		// user never sends another turn.
-		if classifyTransportError(err) != "" {
-			if c.conn.set(StateDisconnected) != StateDisconnected {
+		if ClassifyTransportError(err) != "" {
+			if c.conn.Set(StateDisconnected) != StateDisconnected {
 				c.startRecoveryProbe()
 			}
 		}

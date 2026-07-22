@@ -38,11 +38,12 @@ func (e *ConnectError) Error() string {
 
 func (e *ConnectError) Unwrap() error { return e.Cause }
 
-// friendlyHTTPError inspects err for the common transport failures and
+// FriendlyHTTPError inspects err for the common transport failures and
 // returns a *ConnectError with a category tag if it can recognize one.
 // Unknown errors fall through wrapped only with the request context so the
-// caller's message stays informative.
-func friendlyHTTPError(endpoint, hint string, err error) error {
+// caller's message stays informative. Exported so out-of-package vendor
+// adapters produce the same friendly transport errors as OpenAIClient.
+func FriendlyHTTPError(endpoint, hint string, err error) error {
 	if err == nil {
 		return nil
 	}
@@ -54,14 +55,20 @@ func friendlyHTTPError(endpoint, hint string, err error) error {
 		return err
 	}
 
-	cat := classifyTransportError(err)
+	cat := ClassifyTransportError(err)
 	if cat == "" {
 		return fmt.Errorf("send request: %w", err)
 	}
 	return &ConnectError{Endpoint: endpoint, Category: cat, Hint: hint, Cause: err}
 }
 
-func classifyTransportError(err error) string {
+// ClassifyTransportError returns a short human tag ("connection refused",
+// "no such host (…)", "timed out", …) for a recognized transport-level
+// failure, or "" if err is not a transport error the tracker should react to
+// (e.g. a plain HTTP-status error). Adapters use a non-empty result both to
+// build a friendly message and to decide whether to flip ConnTracker to
+// StateDisconnected and start a recovery probe.
+func ClassifyTransportError(err error) string {
 	// DNS lookup failure first — typo'd host, DNS down, etc.
 	var dnsErr *net.DNSError
 	if errors.As(err, &dnsErr) {

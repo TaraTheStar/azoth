@@ -68,3 +68,38 @@ func TestSetDebug_ClosesPreviousWriter(t *testing.T) {
 		t.Fatalf("second SetDebug(\"\"): %v", err)
 	}
 }
+
+// TestDebugf covers the exported one-call debug helper used by out-of-package
+// adapters: it writes a formatted line when enabled, no-ops when disabled, and
+// DebugEnabled tracks the toggle.
+func TestDebugf(t *testing.T) {
+	t.Cleanup(func() { _ = SetDebug("") })
+
+	if DebugEnabled() {
+		t.Fatal("DebugEnabled should be false before SetDebug")
+	}
+
+	// Disabled: Debugf must not panic and must write nothing.
+	Debugf("dropped %d\n", 1)
+
+	path := filepath.Join(t.TempDir(), "d.log")
+	if err := SetDebug(path); err != nil {
+		t.Fatalf("SetDebug: %v", err)
+	}
+	if !DebugEnabled() {
+		t.Fatal("DebugEnabled should be true after SetDebug")
+	}
+
+	Debugf("hello %s %d\n", "world", 42)
+
+	if err := SetDebug(""); err != nil { // flush+close before reading
+		t.Fatalf("SetDebug(\"\"): %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+	if got, want := string(data), "hello world 42\n"; got != want {
+		t.Errorf("log = %q, want %q (a disabled Debugf must not have written 'dropped')", got, want)
+	}
+}

@@ -64,7 +64,7 @@ func TestClassifyTransportError(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := classifyTransportError(tc.err)
+			got := ClassifyTransportError(tc.err)
 			if got != tc.want {
 				t.Fatalf("got %q, want %q", got, tc.want)
 			}
@@ -73,11 +73,11 @@ func TestClassifyTransportError(t *testing.T) {
 }
 
 func TestFriendlyHTTPError_PreservesContextCancel(t *testing.T) {
-	err := friendlyHTTPError("http://x", "", context.Canceled)
+	err := FriendlyHTTPError("http://x", "", context.Canceled)
 	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("context.Canceled not preserved through friendlyHTTPError: %v", err)
+		t.Fatalf("context.Canceled not preserved through FriendlyHTTPError: %v", err)
 	}
-	err = friendlyHTTPError("http://x", "", context.DeadlineExceeded)
+	err = FriendlyHTTPError("http://x", "", context.DeadlineExceeded)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("context.DeadlineExceeded not preserved: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestFriendlyHTTPError_PreservesContextCancel(t *testing.T) {
 
 func TestFriendlyHTTPError_ConnectErrorWraps(t *testing.T) {
 	cause := &net.OpError{Err: &os.SyscallError{Err: syscall.ECONNREFUSED}}
-	err := friendlyHTTPError("http://localhost:8080/v1", "", cause)
+	err := FriendlyHTTPError("http://localhost:8080/v1", "", cause)
 
 	var ce *ConnectError
 	if !errors.As(err, &ce) {
@@ -107,7 +107,7 @@ func TestFriendlyHTTPError_ConnectErrorWraps(t *testing.T) {
 
 func TestFriendlyHTTPError_UnknownPassthrough(t *testing.T) {
 	cause := errors.New("some weird thing")
-	err := friendlyHTTPError("http://x", "", cause)
+	err := FriendlyHTTPError("http://x", "", cause)
 	if !errors.Is(err, cause) {
 		t.Errorf("cause not preserved through fall-through path: %v", err)
 	}
