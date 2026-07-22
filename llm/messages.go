@@ -283,12 +283,18 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 
 // ToolCall represents a single tool invocation request from the model.
 type ToolCall struct {
-	ID       string `json:"id"`
-	Type     string `json:"type"`
-	Function struct {
-		Name      string `json:"name"`
-		Arguments string `json:"arguments"`
-	} `json:"function"`
+	ID       string       `json:"id"`
+	Type     string       `json:"type"`
+	Function FunctionCall `json:"function"`
+}
+
+// FunctionCall is the name + raw-JSON-arguments payload of a ToolCall.
+// Named (rather than an anonymous struct) so callers can write literals:
+//
+//	llm.ToolCall{ID: "1", Function: llm.FunctionCall{Name: "read", Arguments: `{"path":"x"}`}}
+type FunctionCall struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
 }
 
 // ChatRequest is the OpenAI-compatible chat completion request body.

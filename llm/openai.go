@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -148,10 +149,16 @@ type OpenAIClient struct {
 	Model    string
 
 	// MaxTokens caps a single generation (sent as max_tokens / n_predict).
-	// Zero means "send no cap" — the server's own default applies. Set by
-	// provider.go from resolved config (explicit value, else derived from
-	// the context window). The hard backstop against runaway generation.
+	// Zero means "send no cap" — the server's own default applies. The
+	// hard backstop against runaway generation.
 	MaxTokens int
+
+	// Temperature, when non-nil, is applied to requests that don't set
+	// their own. nil sends nothing, leaving the server's default. Note
+	// ChatRequest marshals temperature with omitempty, so an explicit
+	// 0 cannot reach the wire — a server-side default of 0 is the only
+	// way to run fully greedy.
+	Temperature *float64
 
 	// StallTimeout aborts a stream that produces no token for this long.
 	// Rate-independent by design: it fires on silence, not slowness, so
@@ -241,7 +248,7 @@ const maxChatRetries = 2
 func (c *OpenAIClient) doChatRequest(ctx context.Context, body []byte) (*http.Response, error) {
 	var lastErr error
 	for attempt := 0; attempt <= maxChatRetries; attempt++ {
-		req, err := http.NewRequestWithContext(ctx, "POST", c.Endpoint+"/chat/completions", bytes.NewReader(body))
+		req, err := http.NewRequestWithContext(ctx, "POST", strings.TrimSuffix(c.Endpoint, "/")+"/chat/completions", bytes.NewReader(body))
 		if err != nil {
 			return nil, fmt.Errorf("create request: %w", err)
 		}
@@ -295,6 +302,9 @@ func (c *OpenAIClient) Chat(ctx context.Context, req ChatRequest) (<-chan Event,
 	req.Messages = FilterForRequest(req.Messages)
 	if c.MaxTokens > 0 {
 		req.MaxTokens = c.MaxTokens
+	}
+	if c.Temperature != nil && req.Temperature == 0 {
+		req.Temperature = *c.Temperature
 	}
 
 	// Wrap with stream_options.include_usage=true so the provider sends
