@@ -54,11 +54,28 @@ for ev, err := range llm.Stream(ctx, client, req) { ... }
 `llm/llmtest` provides a programmable `ChatClient` mock for driving
 agent loops in tests.
 
+### `paths`
+
+XDG Base Directory layout, parameterized by application name. A `Layout`
+is bound to one app; each helper honors the matching `XDG_*` var and falls
+back to the spec default under `$HOME`:
+
+```go
+p := paths.Layout{App: "enso"}
+cfg, _ := p.ConfigDir()   // $XDG_CONFIG_HOME/enso (else ~/.config/enso)
+```
+
+`ConfigDir` / `DataDir` / `StateDir` / `RuntimeDir` are the shared
+primitive; app-specific file paths (a db file, a socket, a key) are joined
+onto them at the call site. `RuntimeDir`'s behavior when `$XDG_RUNTIME_DIR`
+is unset is selectable — `FallbackToState` (default) or `FallbackToTemp`
+(a uid-scoped `$TMPDIR/<app>-<uid>`, for a 0700 socket dir) — since the
+XDG spec leaves that choice to the application.
+
 ## Planned
 
 Roughly in order — see the sibling repos for the current copies:
 
-- `paths` — XDG base-directory layout, parameterized by app name
 - `store` — modernc-sqlite open + embedded-migration harness
   (`user_version` cursor, WAL/foreign-keys/busy-timeout pragmas)
 - `tools` — the shared `Tool` / `Result` / `Registry` contract
