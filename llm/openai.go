@@ -193,6 +193,22 @@ type OpenAIClient struct {
 	// cosmetic; the error category and cause are unaffected.
 	ConnectHint string
 
+	// StatusRetries is the number of additional attempts after a
+	// retryable HTTP-status response (429, 502, 503, 504). Zero — the
+	// default — disables status retry: interactive apps want the error
+	// surfaced immediately so the user can decide. Unattended daemons
+	// set it to ride out a briefly busy or restarting server. The wait
+	// honors the response's Retry-After header when present; without
+	// one it falls back to the transport backoff schedule.
+	StatusRetries int
+
+	// StatusRetryMaxWait caps a single Retry-After-driven wait. Zero
+	// means the 30s default. When a server demands a longer wait than
+	// the cap, the APIError is surfaced instead of sleeping toward it —
+	// a long Retry-After is the server saying "come back much later",
+	// which the caller should decide about, not this loop.
+	StatusRetryMaxWait time.Duration
+
 	// RetryBackoff and ProbeInterval are test seams. Production leaves
 	// both nil/zero and falls back to the package defaults
 	// (retryBackoff / probeInterval). Tests use tight values so a full
@@ -295,6 +311,80 @@ func (c *OpenAIClient) doChatRequest(ctx context.Context, body []byte) (*http.Re
 	return nil, friendlyHTTPError(c.Endpoint, c.ConnectHint, lastErr)
 }
 
+// retryableStatus reports whether a status code is worth re-attempting:
+// rate limiting (429) and the gateway-transient trio (502/503/504). A
+// 500 is excluded — providers use it for genuine request-triggered
+// faults, where re-sending the same body just repeats the fault.
+func retryableStatus(code int) bool {
+	switch code {
+	case http.StatusTooManyRequests, http.StatusBadGateway,
+		http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		return true
+	}
+	return false
+}
+
+// doChatRequestRetryingStatus wraps doChatRequest with the opt-in
+// HTTP-status retry loop (StatusRetries). It owns the whole
+// response-or-APIError decision: a 2xx response is returned with its
+// body open; any other status is drained (1 KiB cap), closed, and
+// either retried or returned as *APIError. Transport errors pass
+// through from doChatRequest (which has its own retry) untouched.
+func (c *OpenAIClient) doChatRequestRetryingStatus(ctx context.Context, body []byte) (*http.Response, error) {
+	for attempt := 0; ; attempt++ {
+		resp, err := c.doChatRequest(ctx, body)
+		if err != nil {
+			return nil, err
+		}
+
+		// We got *some* HTTP response — TCP+TLS were healthy enough.
+		// Even a 500 means the endpoint is reachable, so clear any
+		// prior degraded state.
+		c.conn.set(StateConnected)
+
+		if resp.StatusCode <= 299 {
+			return resp, nil
+		}
+
+		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		retryAfter := parseRetryAfter(resp.Header)
+		resp.Body.Close()
+		apiErr := &APIError{
+			StatusCode: resp.StatusCode,
+			Body:       string(snippet),
+			RetryAfter: retryAfter,
+		}
+
+		if attempt >= c.StatusRetries || !retryableStatus(resp.StatusCode) {
+			return nil, apiErr
+		}
+
+		maxWait := c.StatusRetryMaxWait
+		if maxWait == 0 {
+			maxWait = 30 * time.Second
+		}
+		if retryAfter > maxWait {
+			return nil, apiErr
+		}
+		wait := retryAfter
+		if wait == 0 {
+			backoff := retryBackoff
+			if c.RetryBackoff != nil {
+				backoff = c.RetryBackoff
+			}
+			wait = backoff(attempt)
+		}
+		if debugEnabled.Load() {
+			fmt.Fprintf(debugLog(), "status retry %d/%d after HTTP %d, waiting %s\n", attempt+1, c.StatusRetries, resp.StatusCode, wait)
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(wait):
+		}
+	}
+}
+
 // Chat sends a streaming chat completion request and yields events on the returned channel.
 func (c *OpenAIClient) Chat(ctx context.Context, req ChatRequest) (<-chan Event, error) {
 	req.Stream = true
@@ -328,7 +418,7 @@ func (c *OpenAIClient) Chat(ctx context.Context, req ChatRequest) (<-chan Event,
 		fmt.Fprintf(debugLog(), "POST %s/chat/completions\nbody: %s\n", c.Endpoint, data)
 	}
 
-	resp, err := c.doChatRequest(ctx, data)
+	resp, err := c.doChatRequestRetryingStatus(ctx, data)
 	if err != nil {
 		// All retries (if any) exhausted on a transport error: flip the
 		// indicator to Disconnected and start the recovery probe so the
@@ -340,22 +430,6 @@ func (c *OpenAIClient) Chat(ctx context.Context, req ChatRequest) (<-chan Event,
 			}
 		}
 		return nil, err
-	}
-
-	// We got *some* HTTP response — TCP+TLS were healthy enough. Even a
-	// 500 means the endpoint is reachable, so clear any prior degraded
-	// state. (HTTP-error rendering is handled below / by callers.)
-	c.conn.set(StateConnected)
-
-	if resp.StatusCode > 299 {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		retryAfter := parseRetryAfter(resp.Header)
-		resp.Body.Close()
-		return nil, &APIError{
-			StatusCode: resp.StatusCode,
-			Body:       string(body),
-			RetryAfter: retryAfter,
-		}
 	}
 
 	eventCh := make(chan Event, 32)

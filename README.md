@@ -25,6 +25,12 @@ battle-tested implementation:
   across turns
 - transport-only retry with backoff (500ms / 1.5s), friendly
   categorized network errors, `Retry-After`-aware API errors
+- opt-in bounded retry of retryable statuses (429/502/503/504) that
+  honors `Retry-After` — for unattended daemons; off by default
+- `Pool` — FIFO slot bounding for shared inference hardware, and
+  `PooledClient` to wrap any client with one
+- `Complete()` — the one-call ask-and-answer helper for digests,
+  summaries, and describe prompts
 - stall watchdog (inter-token silence, prefill-safe), mid-stream
   repetition guard, optional reasoning budget — the local-model failure
   modes
