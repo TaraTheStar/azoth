@@ -59,6 +59,15 @@ type Script struct {
 	SuppressUsage bool
 }
 
+// Call builds a tool-call literal compactly. Scripted-mock tests construct
+// many, and the full llm.ToolCall{ID, Type, Function: llm.FunctionCall{...}}
+// nesting is noise at every call site; this collapses it to the three fields
+// a test actually chooses. Type is set to "function", the only kind the wire
+// protocol defines.
+func Call(id, name, args string) llm.ToolCall {
+	return llm.ToolCall{ID: id, Type: "function", Function: llm.FunctionCall{Name: name, Arguments: args}}
+}
+
 // Mock is a programmable ChatClient. Construct with New or NewT.
 type Mock struct {
 	mu    sync.Mutex

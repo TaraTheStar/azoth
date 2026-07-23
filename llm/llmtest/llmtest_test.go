@@ -11,6 +11,32 @@ import (
 	"github.com/TaraTheStar/azoth/llm/llmtest"
 )
 
+func TestCall(t *testing.T) {
+	tc := llmtest.Call("c1", "read", `{"path":"x"}`)
+	if tc.ID != "c1" || tc.Type != "function" {
+		t.Errorf("id/type = %q/%q, want c1/function", tc.ID, tc.Type)
+	}
+	if tc.Function.Name != "read" || tc.Function.Arguments != `{"path":"x"}` {
+		t.Errorf("function = %+v", tc.Function)
+	}
+	// A scripted tool-call turn drives the mock end to end.
+	m := llmtest.New()
+	m.Push(llmtest.Script{ToolCalls: []llm.ToolCall{tc}})
+	events, err := m.Chat(context.Background(), llm.ChatRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sawToolCall bool
+	for _, ev := range drain(events) {
+		if ev.Type == llm.EventToolCallComplete && len(ev.ToolCalls) == 1 && ev.ToolCalls[0].ID == "c1" {
+			sawToolCall = true
+		}
+	}
+	if !sawToolCall {
+		t.Error("scripted Call() did not surface as a tool-call event")
+	}
+}
+
 func TestMock_TextThenDone(t *testing.T) {
 	m := llmtest.New()
 	m.Push(llmtest.Script{Text: "hello"})

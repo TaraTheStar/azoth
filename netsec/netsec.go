@@ -7,10 +7,14 @@
 // host-side egress proxy, a sealed worker pointed at an HTTPS_PROXY — rather
 // than drifting between per-application copies.
 //
-// The guard only classifies addresses. Resolving a host and pinning the vetted
-// IP against DNS rebinding is the caller's job: that dial path carries
-// application-specific policy (per-host allowlists, redirect budgets) that does
-// not belong here. Each application composes IsDeniedIP into its own dialer.
+// IsDeniedIP classifies a single address. Dialer composes that classification
+// into the enforcing resolve-and-pin dial path (refuse if any resolved IP is
+// denied, then dial the vetted literal so DNS can't rebind between check and
+// connect), and GuardedClient wraps a zero-value Dialer in a ready *http.Client
+// for a model-driven fetch tool. Application-specific policy that sits ABOVE
+// the address check — per-host allowlists, interactive egress prompts, proxy
+// framing — stays in the application; a Dialer.Exempt hook is the one seam
+// provided for an operator-configured opt-out.
 package netsec
 
 import "net"
