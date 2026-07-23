@@ -52,7 +52,9 @@ for ev, err := range llm.Stream(ctx, client, req) { ... }
 ```
 
 `llm/llmtest` provides a programmable `ChatClient` mock for driving
-agent loops in tests.
+agent loops in tests — a scriptable `Mock` (scheduled `Script` turns,
+recorded `Calls`, `NewT` for leftover-script assertions) plus a `Call`
+constructor for compact tool-call literals.
 
 #### Cloud backends — `llm/anthropic`, `llm/bedrock`, `llm/vertex`
 
@@ -135,10 +137,36 @@ cloud metadata 169.254.169.254), multicast, unspecified, CGNAT 100.64/10,
 if netsec.IsDeniedIP(resolved) { return errBlocked }
 ```
 
-Only the stdlib `net` — no `llm` dependency — so a consumer that only
-needs the classifier doesn't pull anything else in. The resolve-and-pin
-dialer that *uses* it stays per-app (each host has its own allow-list and
-egress policy); azoth shares only the classification.
+`Dialer` composes that classifier into the enforcing dial path — resolve
+the host, refuse if *any* resolved address is denied, then dial the vetted
+IP literals in order so DNS can't rebind between the check and the connect.
+An `Exempt func(hostport) bool` hook is the one seam for an
+operator-configured opt-out (a deliberately-named loopback service), and a
+typed `DeniedError` lets a caller reword the refusal with app-specific
+remediation. `GuardedClient(timeout)` wraps a no-exemptions `Dialer` in a
+ready `*http.Client` (redirects capped, each hop re-checked) for a
+model-driven fetch tool.
+
+```go
+client := netsec.GuardedClient(30 * time.Second)   // batteries-included
+tr.DialContext = (&netsec.Dialer{Exempt: allow}).DialContext  // custom policy
+```
+
+Only the stdlib `net`/`net/http` — no `llm` dependency. The policy that
+sits *above* the address check — per-host allow-lists, interactive egress
+prompts, proxy framing — stays in the app; azoth shares the resolve-and-pin
+mechanism, not the allow-list.
+
+### `ipc`
+
+The local-socket control-protocol framing an app's CLI and daemon speak:
+a 4-byte length prefix plus one `{kind, body}` JSON `Envelope` (`Pack` /
+`Write` / `Read`, an 8 MiB `MaxMessage` cap, truncated-frame detection).
+The *set* of kinds and the typed payloads stay per-app — each keeps its own
+`Kind` vocabulary and adapts to `Envelope` at the seam — so only the
+byte-level framing is shared and audited once. `CheckPeerUID(conn)` adds
+the unix-socket `SO_PEERCRED` admission check (a no-op off Linux) that
+belongs with this transport.
 
 ### `tools`
 
@@ -170,7 +198,11 @@ wire-form + slow-consumer accounting) can't sit on a common core cleanly.
 
 Also intentionally out: config structs, store schemas and query surfaces,
 agent loops, memory designs, and embeddings — those are per-app products,
-not shared substance.
+not shared substance. Prefix-gated config env-expansion (the anti-secret-
+exfiltration rule both apps carry) was evaluated for sharing and held back:
+the threat model is common but the integration is not — namtar expands raw
+TOML bytes before parse, ensō expands per-value after — so a shared
+primitive would be a behavior-changing migration, not a lift.
 
 ## Development
 
