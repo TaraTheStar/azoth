@@ -2,6 +2,9 @@ module github.com/TaraTheStar/azoth
 
 go 1.26
 
+// Superseded by v1.1.1; use v1.1.1 or later.
+retract [v0.1.0, v1.1.0]
+
 require (
 	github.com/anthropics/anthropic-sdk-go v1.59.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.31
