@@ -6,7 +6,7 @@ require (
 	github.com/anthropics/anthropic-sdk-go v1.59.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.31
 	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.56.0
-	golang.org/x/sys v0.46.0
+	golang.org/x/sys v0.47.0
 	google.golang.org/genai v1.65.0
 	modernc.org/sqlite v1.54.0
 )
