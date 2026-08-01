@@ -263,8 +263,10 @@ func TestChat_TransportExhaustionDisconnectsAndStartsProbe(t *testing.T) {
 
 func TestChat_HTTPErrorDoesNotMarkDisconnected(t *testing.T) {
 	// An HTTP 500 means TLS+TCP succeeded — the indicator must stay
-	// healthy. Rate-limit / provider-error rendering is a separate
-	// concern (TODO P2 #11).
+	// healthy. How a rate limit or a provider error is *rendered* is a
+	// separate concern, and not this library's: the state machine
+	// reports transport reachability, and a consumer decides what to
+	// show for a reachable provider that answered badly.
 	rt := &seqRT{steps: []seqStep{
 		{resp: &http.Response{
 			StatusCode: 500,
