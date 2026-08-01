@@ -204,6 +204,13 @@ the threat model is common but the integration is not — namtar expands raw
 TOML bytes before parse, ensō expands per-value after — so a shared
 primitive would be a behavior-changing migration, not a lift.
 
+## Versioning
+
+Semantic versioning, one annotated tag per release, notes in
+[CHANGELOG.md](./CHANGELOG.md). Everything through v1.1.0 is retracted in
+`go.mod` and will not be offered by `go get` — v1.1.1 is the first usable
+version, and the newest patch is always the one to take.
+
 ## Development
 
 The siblings live side by side; use a `go.work` in the parent directory
