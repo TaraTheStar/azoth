@@ -14,8 +14,9 @@ three times.
 Nothing here is specific to those three. Each package takes its configuration
 as a parameter and leaves policy to the caller, so they work standalone —
 `llm` in particular is a general OpenAI-compatible streaming client hardened
-for local models, and `netsec` a self-contained SSRF guard. Note the license
-before adopting: AGPL-3.0-or-later reaches any program that imports it.
+for local models, and `netsec` a self-contained SSRF guard. It's
+AGPL-3.0-or-later: build on it freely, and share what you build on the same
+terms.
 
 Package documentation, with runnable examples, is on
 [pkg.go.dev](https://pkg.go.dev/github.com/TaraTheStar/azoth).
