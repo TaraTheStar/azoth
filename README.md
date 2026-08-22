@@ -11,6 +11,15 @@ Shared foundation library for [ensō](https://github.com/TaraTheStar/enso),
 substance inside every work, extracted so a fix lands once instead of
 three times.
 
+Nothing here is specific to those three. Each package takes its configuration
+as a parameter and leaves policy to the caller, so they work standalone —
+`llm` in particular is a general OpenAI-compatible streaming client hardened
+for local models, and `netsec` a self-contained SSRF guard. Note the license
+before adopting: AGPL-3.0-or-later reaches any program that imports it.
+
+Package documentation, with runnable examples, is on
+[pkg.go.dev](https://pkg.go.dev/github.com/TaraTheStar/azoth).
+
 ## Packages
 
 ### `llm`
