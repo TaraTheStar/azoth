@@ -20,6 +20,56 @@ the module proxy and the rewritten history, kept for the record.
 
 _Nothing yet._
 
+## [1.1.6] — 2026-10-02
+
+Dependency refresh. No API change.
+
+### Other
+
+- Dependency bumps collected since v1.1.5, all via Dependabot:
+  `anthropic-sdk-go` 1.71.0 → 1.76.0, `aws-sdk-go-v2/config` 1.33.3 → 1.33.6,
+  `aws-sdk-go-v2/service/bedrockruntime` 1.61.0 → 1.63.1,
+  `golang.org/x/sys` 0.47.0 → 0.48.0, `modernc.org/sqlite` 1.58.0 → 1.59.0,
+  and the transitive AWS SDK core packages.
+
+## [1.1.5] — 2026-09-10
+
+Security release. No API change.
+
+### Security
+
+- `golang.org/x/crypto` 0.52.0 → 0.56.0, closing the advisories carried
+  indirectly through the AWS and Google SDKs, including GO-2026-6303,
+  GO-2026-6354 and GO-2026-6355. GO-2026-5932 remains, with no fixed version
+  published upstream yet.
+- `google.golang.org/grpc` 1.82.1 → 1.83.2, via Dependabot's security group.
+- `golang.org/x/net` 0.55.0 → 0.58.0.
+
+### Other
+
+- Dependency bumps collected since v1.1.4, all via Dependabot:
+  `anthropic-sdk-go` 1.71.0, `google.golang.org/genai` 1.71.0,
+  `modernc.org/sqlite` 1.58.0, `aws-sdk-go-v2/config` 1.33.3,
+  `aws-sdk-go-v2/service/bedrockruntime` 1.61.0, OpenTelemetry 1.44.0, and
+  the transitive AWS and Google SDK core packages.
+
+## [1.1.4] — 2026-08-22
+
+Docs only. No API or behavior change, so consumers need not re-pin.
+
+### Documentation
+
+- `llm` and the three cloud backends had no package comment, so they rendered
+  with a blank synopsis on pkg.go.dev — the four packages a newcomer arrives
+  at first. Adds those plus five compiled examples on `llm`'s entry points.
+- README states the license as an invitation, not a caveat.
+
+### Other
+
+- Dependency bumps collected since v1.1.3, all via Dependabot:
+  `anthropic-sdk-go`, `google.golang.org/genai` 1.68.0,
+  `aws-sdk-go-v2/config`, `aws-sdk-go-v2/service/bedrockruntime`.
+
 ## [1.1.3] — 2026-08-01
 
 Security release. No API change.
@@ -236,7 +286,10 @@ Initial extraction of ensō's OpenAI-compatible LLM client.
 - `llm/llmtest` — programmable `ChatClient` mock: scheduled `Script`
   turns, recorded `Calls`, and `NewT` for leftover-script assertions.
 
-[Unreleased]: https://github.com/TaraTheStar/azoth/compare/v1.1.3...HEAD
+[Unreleased]: https://github.com/TaraTheStar/azoth/compare/v1.1.6...HEAD
+[1.1.6]: https://github.com/TaraTheStar/azoth/releases/tag/v1.1.6
+[1.1.5]: https://github.com/TaraTheStar/azoth/releases/tag/v1.1.5
+[1.1.4]: https://github.com/TaraTheStar/azoth/releases/tag/v1.1.4
 [1.1.3]: https://github.com/TaraTheStar/azoth/releases/tag/v1.1.3
 [1.1.2]: https://github.com/TaraTheStar/azoth/releases/tag/v1.1.2
 [1.1.1]: https://github.com/TaraTheStar/azoth/releases/tag/v1.1.1
