@@ -3,8 +3,10 @@
 package llm
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"strings"
 )
 
 // Message represents a single message in the conversation.
@@ -259,26 +261,82 @@ func (m Message) marshalMultimodalJSON() ([]byte, error) {
 	})
 }
 
-// UnmarshalJSON keeps the symmetric shape so a session re-loaded from
-// the store comes back with Content populated as expected.
+// UnmarshalJSON accepts both shapes MarshalJSON emits, so a message
+// survives a JSON hop (session store, host-proxied inference) whether or
+// not it carries Parts. For the multimodal array a leading text block
+// becomes Content and the rest become Parts — the split MarshalJSON
+// started from when both were set, and wire-equivalent when they weren't.
 func (m *Message) UnmarshalJSON(data []byte) error {
 	type alias struct {
-		Role       string     `json:"role"`
-		Content    string     `json:"content"`
-		ToolCalls  []ToolCall `json:"tool_calls"`
-		ToolCallID string     `json:"tool_call_id"`
-		Name       string     `json:"name"`
+		Role       string          `json:"role"`
+		Content    json.RawMessage `json:"content"`
+		ToolCalls  []ToolCall      `json:"tool_calls"`
+		ToolCallID string          `json:"tool_call_id"`
+		Name       string          `json:"name"`
 	}
 	var a alias
 	if err := json.Unmarshal(data, &a); err != nil {
 		return err
 	}
 	m.Role = a.Role
-	m.Content = a.Content
+	m.Content = ""
+	m.Parts = nil
 	m.ToolCalls = a.ToolCalls
 	m.ToolCallID = a.ToolCallID
 	m.Name = a.Name
+
+	content := bytes.TrimSpace(a.Content)
+	if len(content) == 0 || content[0] != '[' {
+		if len(content) == 0 || string(content) == "null" {
+			return nil
+		}
+		return json.Unmarshal(content, &m.Content)
+	}
+
+	var blocks []struct {
+		Type     string `json:"type"`
+		Text     string `json:"text"`
+		ImageURL *struct {
+			URL string `json:"url"`
+		} `json:"image_url"`
+		File *struct {
+			FileData string `json:"file_data"`
+			FileID   string `json:"file_id"`
+		} `json:"file"`
+	}
+	if err := json.Unmarshal(content, &blocks); err != nil {
+		return err
+	}
+	for i, b := range blocks {
+		switch {
+		case b.Type == "text" && i == 0:
+			m.Content = b.Text
+		case b.Type == "text":
+			m.Parts = append(m.Parts, NewTextPart(b.Text))
+		case b.Type == "image_url" && b.ImageURL != nil:
+			m.Parts = append(m.Parts, partFromURL("image", b.ImageURL.URL))
+		case b.Type == "file" && b.File != nil:
+			if b.File.FileID != "" {
+				m.Parts = append(m.Parts, MessagePart{Type: "document", URI: b.File.FileID})
+			} else {
+				m.Parts = append(m.Parts, partFromURL("document", b.File.FileData))
+			}
+		}
+	}
 	return nil
+}
+
+// partFromURL is the inverse of dataURL: a base64 data: URL comes back as
+// inline bytes, anything else stays a URI reference.
+func partFromURL(typ, url string) MessagePart {
+	if rest, ok := strings.CutPrefix(url, "data:"); ok {
+		if mime, enc, ok := strings.Cut(rest, ";base64,"); ok {
+			if data, err := base64.StdEncoding.DecodeString(enc); err == nil {
+				return MessagePart{Type: typ, MIMEType: mime, Data: data}
+			}
+		}
+	}
+	return MessagePart{Type: typ, URI: url}
 }
 
 // ToolCall represents a single tool invocation request from the model.

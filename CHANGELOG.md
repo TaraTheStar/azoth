@@ -20,6 +20,18 @@ the module proxy and the rewritten history, kept for the record.
 
 _Nothing yet._
 
+## [1.1.7] — 2026-10-03
+
+Bug fix. No API change.
+
+### Fixed
+
+- **`llm.Message` decodes the multimodal `content` array it encodes.** A
+  message carrying `Parts` marshalled `content` as a block array that
+  `UnmarshalJSON` rejected, so any JSON hop — ensō's host-proxied inference,
+  a stored session — failed once an image or document entered the history.
+  A leading text block decodes into `Content`, the rest into `Parts`.
+
 ## [1.1.6] — 2026-10-02
 
 Dependency refresh. No API change.
@@ -286,7 +298,8 @@ Initial extraction of ensō's OpenAI-compatible LLM client.
 - `llm/llmtest` — programmable `ChatClient` mock: scheduled `Script`
   turns, recorded `Calls`, and `NewT` for leftover-script assertions.
 
-[Unreleased]: https://github.com/TaraTheStar/azoth/compare/v1.1.6...HEAD
+[Unreleased]: https://github.com/TaraTheStar/azoth/compare/v1.1.7...HEAD
+[1.1.7]: https://github.com/TaraTheStar/azoth/releases/tag/v1.1.7
 [1.1.6]: https://github.com/TaraTheStar/azoth/releases/tag/v1.1.6
 [1.1.5]: https://github.com/TaraTheStar/azoth/releases/tag/v1.1.5
 [1.1.4]: https://github.com/TaraTheStar/azoth/releases/tag/v1.1.4
