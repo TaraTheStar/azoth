@@ -233,3 +233,61 @@ func TestEffectiveInputTokens_PerProvider(t *testing.T) {
 		})
 	}
 }
+
+// TestMessageRoundTrip_Parts: a message carrying Parts must decode from
+// the multimodal array it encodes to, and re-encode to the same bytes.
+func TestMessageRoundTrip_Parts(t *testing.T) {
+	png := []byte{0x89, 0x50, 0x4e, 0x47}
+	cases := []struct {
+		name string
+		in   Message
+		want Message
+	}{
+		{
+			name: "content plus parts",
+			in: Message{Role: "user", Content: "what is this?", Parts: []MessagePart{
+				NewImagePart("image/png", png),
+				NewImagePartURI("https://example.com/cat.jpg"),
+				NewTextPart("and this?"),
+				NewDocumentPart("application/pdf", []byte("%PDF")),
+			}},
+		},
+		{
+			name: "tool result with image only",
+			in: Message{Role: "tool", ToolCallID: "c1", Name: "read", Parts: []MessagePart{
+				NewImagePart("image/png", png),
+			}},
+		},
+		{
+			name: "leading text part becomes content",
+			in:   Message{Role: "user", Parts: []MessagePart{NewTextPart("hi"), NewImagePart("image/png", png)}},
+			want: Message{Role: "user", Content: "hi", Parts: []MessagePart{NewImagePart("image/png", png)}},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			b, err := json.Marshal(ChatRequest{Messages: []Message{c.in}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var out ChatRequest
+			if err := json.Unmarshal(b, &out); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+			want := c.want
+			if want.Role == "" {
+				want = c.in
+			}
+			if !reflect.DeepEqual(out.Messages[0], want) {
+				t.Errorf("roundtrip mismatch:\nwant: %+v\ngot:  %+v", want, out.Messages[0])
+			}
+			again, err := json.Marshal(out)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(again) != string(b) {
+				t.Errorf("re-encoded bytes differ:\nfirst:  %s\nsecond: %s", b, again)
+			}
+		})
+	}
+}
