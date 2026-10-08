@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.33.6
 	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.63.1
 	golang.org/x/sys v0.48.0
-	google.golang.org/genai v1.71.0
+	google.golang.org/genai v1.72.0
 	modernc.org/sqlite v1.60.1
 )
 
