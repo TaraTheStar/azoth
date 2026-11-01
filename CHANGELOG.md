@@ -20,6 +20,29 @@ the module proxy and the rewritten history, kept for the record.
 
 _Nothing yet._
 
+## [1.1.8] — 2026-10-31
+
+Security release. No API change.
+
+### Security
+
+- **`golang.org/x/net` 0.58.0 → 0.62.0.** v1.1.7 pinned a version with
+  five called HTTP/2 findings reachable from `llm.OpenAIClient.Chat` and the
+  `netsec` error path — GO-2026-6603, GO-2026-6610, GO-2026-6611,
+  GO-2026-6612, GO-2026-6617 — and two required-only `x/net/html` findings,
+  GO-2026-6860 and GO-2026-6866. All are fixed at 0.62.0. Consumers that pin
+  a higher `x/net` themselves were never affected; the module's own minimum
+  now is not vulnerable either.
+
+### Other
+
+- Dependency bumps collected since v1.1.7, all via Dependabot:
+  `anthropic-sdk-go` 1.76.0 → 1.84.0, `aws-sdk-go-v2/config` 1.33.6 → 1.33.10,
+  `aws-sdk-go-v2/service/bedrockruntime` 1.63.1 → 1.63.7,
+  `golang.org/x/sys` 0.48.0 → 0.49.0, `google.golang.org/genai` 1.71.0 → 1.76.0,
+  `modernc.org/sqlite` 1.59.0 → 1.61.0, and the transitive AWS, Google
+  Cloud, OpenTelemetry and gRPC packages.
+
 ## [1.1.7] — 2026-10-03
 
 Bug fix. No API change.
@@ -298,7 +321,8 @@ Initial extraction of ensō's OpenAI-compatible LLM client.
 - `llm/llmtest` — programmable `ChatClient` mock: scheduled `Script`
   turns, recorded `Calls`, and `NewT` for leftover-script assertions.
 
-[Unreleased]: https://github.com/TaraTheStar/azoth/compare/v1.1.7...HEAD
+[Unreleased]: https://github.com/TaraTheStar/azoth/compare/v1.1.8...HEAD
+[1.1.8]: https://github.com/TaraTheStar/azoth/releases/tag/v1.1.8
 [1.1.7]: https://github.com/TaraTheStar/azoth/releases/tag/v1.1.7
 [1.1.6]: https://github.com/TaraTheStar/azoth/releases/tag/v1.1.6
 [1.1.5]: https://github.com/TaraTheStar/azoth/releases/tag/v1.1.5
