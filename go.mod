@@ -8,7 +8,7 @@ retract [v0.1.0, v1.1.0]
 require (
 	github.com/anthropics/anthropic-sdk-go v1.84.0
 	github.com/aws/aws-sdk-go-v2/config v1.33.16
-	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.63.7
+	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.63.12
 	golang.org/x/sys v0.50.0
 	google.golang.org/genai v1.76.0
 	modernc.org/sqlite v1.61.1
